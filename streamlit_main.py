@@ -29,7 +29,7 @@ init_session_state()
 
 
 init_db()
-
+init_temp_table()
 
 st.set_page_config(layout="wide", page_title="License Plate Detection")
 
@@ -46,41 +46,7 @@ def frame_reader(cap, frame_queue, stop_event):
             except queue.Empty:
                 pass
         frame_queue.put(frame)
-        time.sleep(0.01)
-
-
-# def process_frame(frame):
-#     polygon_points = np.array([(89, 607), (331, 344), (1296, 352), (1313, 641)], np.int32)
-    
-#     # (Tùy chọn) Giảm độ phân giải nếu cần: ví dụ, chuyển về 640x480
-#     # frame = cv2.resize(frame, (640, 480))
-    
-#     # Chuyển đổi từ BGR sang RGB
-#     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-#     # Detect biển số trong frame
-#     detected_plates = detect_license_plate(frame_rgb)
-    
-#     # Vẽ bounding box và thông tin biển số lên frame
-#     for det in detected_plates:
-#         det_id = det["id"]
-#         ocr_result = det["ocr"]
-#         x1, y1, x2, y2 = det["bbox"]
-#         cv2.rectangle(frame_rgb, (x1, y1), (x2, y2), (255, 255, 0), 2)
-#         cv2.putText(frame_rgb, f"ID: {det_id} LP: {ocr_result}", (x1, y1 - 10),
-#                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-#         # Chỉ thêm vào lịch sử nếu biển số chưa có
-#         if ocr_result not in st.session_state.added_plates:
-#             registered_plates = get_registered_plates()
-#             plate_type = "Registered" if ocr_result in registered_plates['plate_number'].values else "New"
-#             add_plate_history(ocr_result, plate_type)
-#             st.session_state.added_plates.append(ocr_result)
-    
-#     # Vẽ polygon vùng quan tâm
-#     cv2.polylines(frame_rgb, [polygon_points.reshape((-1, 1, 2))],
-#                   isClosed=True, color=(0, 0, 255), thickness=2)
-    
-#     return frame_rgb
+        time.sleep(0.05)
 
 def process_frame(frame):
     polygon_points = np.array([(89, 607), (331, 344), (1296, 352), (1313, 641)], np.int32)
@@ -105,13 +71,6 @@ def process_frame(frame):
         cv2.putText(frame_rgb, f"ID: {track_id} LP: {ocr_text}",
                     (vehicle_bbox[0], vehicle_bbox[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
-
-        # if ocr_text not in st.session_state.added_plates:
-        #     registered_plates = get_registered_plates()
-        #     plate_type = "Registered" if ocr_text in registered_plates['plate_number'].values else "New"
-        #     add_plate_history(ocr_text, plate_type)
-        #     st.session_state.added_plates.append(ocr_text)
         
         update_vehicle_plate_temp(track_id, ocr_text)
     
@@ -221,9 +180,9 @@ if st.session_state.camera_active:
                     hide_index=True,
                     column_config={
                         "no": st.column_config.NumberColumn("No.", width="small"),
-                        "License Plate": st.column_config.TextColumn("License Plate", width="medium"),
+                        "License Plate": st.column_config.TextColumn("License Plate", width=None),
                         "Time": st.column_config.TextColumn("Time", width="medium"),
-                        "Type": st.column_config.TextColumn("Type", width="small"),
+                        "Type": st.column_config.TextColumn("Type", width="medium"),
                     },
                     use_container_width=True
                 )

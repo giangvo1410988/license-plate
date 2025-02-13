@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import torch
-from paddleocr import PaddleOCR
 import re
 import collections
 import function.helper as helper
@@ -29,22 +28,24 @@ yolo_license_plate = torch.hub.load('yolov5', 'custom',
                                     path='model/LP_ocr.pt',
                                     force_reload=True, source='local').to('cuda')
 
-# ocr_model = PaddleOCR(lang='en')
 
-yolo_lp_track = YOLO('./checkpoint/yolo11n.pt').to('cuda:0')
+yolo_lp_track = YOLO('./checkpoint/yolo11n.pt').to('cuda')
 
 def init_db():
     try:
         conn = sqlite3.connect('license_plate.db')
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS registered_plates
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      plate_number TEXT UNIQUE)''')
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plate_number TEXT UNIQUE)''')
         c.execute('''CREATE TABLE IF NOT EXISTS plate_history
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      plate_number TEXT,
-                      timestamp DATETIME,
-                      type TEXT)''')
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    track_id INTEGER,
+                    plate_number TEXT,
+                    timestamp DATETIME,
+                    type TEXT,
+                    UNIQUE(track_id, plate_number)
+                    )''')
         conn.commit()
     except sqlite3.Error as e:
         st.error(f"Database error: {e}")
@@ -100,15 +101,13 @@ def process_temp_table():
             track_id, license_plate, max_count = row
             registered = get_registered_plates()
             plate_type = "Registered" if (not registered.empty and license_plate in registered['plate_number'].values) else "New"
-            add_plate_history(license_plate, plate_type)
+            add_plate_history(track_id, license_plate, plate_type)
         c.execute("DELETE FROM vehicle_plate_temp")
         conn.commit()
     except sqlite3.Error as e:
         st.error(f"Database error (process_temp_table): {e}")
     finally:
         conn.close()
-
-
 
 def add_registered_plate(plate_number):
     if not plate_number:
@@ -149,14 +148,17 @@ def delete_registered_plate(plate_number):
     finally:
         conn.close()
 
-def add_plate_history(plate_number, plate_type):
+def add_plate_history(track_id, plate_number, plate_type):
     try:
         conn = sqlite3.connect('license_plate.db')
         c = conn.cursor()
-        timestamp = datetime.now()
-        c.execute("INSERT INTO plate_history (plate_number, timestamp, type) VALUES (?, ?, ?)",
-                  (plate_number, timestamp, plate_type))
-        conn.commit()
+        # Kiểm tra nếu (track_id, plate_number) đã có trong bảng
+        c.execute("SELECT 1 FROM plate_history WHERE track_id = ? AND plate_number = ?", (track_id, plate_number))
+        if c.fetchone() is None:
+            timestamp = datetime.now()
+            c.execute("INSERT INTO plate_history (track_id, plate_number, timestamp, type) VALUES (?, ?, ?, ?)",
+                      (track_id, plate_number, timestamp, plate_type))
+            conn.commit()
     except sqlite3.Error as e:
         st.error(f"Database error: {e}")
     finally:
@@ -278,4 +280,3 @@ def detect_license_plate(frame):
                             "plate_bbox": [lp_x1, lp_y1, lp_x2, lp_y2]
                         })
     return output
-   
